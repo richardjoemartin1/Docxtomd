@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DOCX → Markdown Converter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #141720;
+      --surface2:  #1c2030;
+      --border:    #252a3a;
+      --accent:    #6c63ff;
+      --accent2:   #a78bfa;
+      --success:   #34d399;
+      --error:     #f87171;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --radius:    14px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 60px;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(108,99,255,.18), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 90%, rgba(167,139,250,.08), transparent);
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .header .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(108,99,255,.15);
+      border: 1px solid rgba(108,99,255,.3);
+      color: var(--accent2);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 99px;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 30%, var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+    .header p {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 420px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 100%;
+      max-width: 760px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.4);
+    }
+
+    /* ── Drop zone ── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 56px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    #drop-zone:hover,
+    #drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(108,99,255,.06);
+    }
+    #drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .drop-icon {
+      font-size: 40px;
+      margin-bottom: 14px;
+      display: block;
+      filter: drop-shadow(0 0 12px rgba(108,99,255,.5));
+    }
+    .drop-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .drop-sub {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* ── File chip ── */
+    #file-chip {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    #file-chip .chip-icon { font-size: 20px; }
+    #file-chip .chip-name { font-weight: 500; flex: 1; }
+    #file-chip .chip-size { color: var(--muted); font-size: 12px; }
+    #file-chip .chip-clear {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0;
+      transition: color .15s;
+    }
+    #file-chip .chip-clear:hover { color: var(--error); }
+
+    /* ── Convert button ── */
+    #convert-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      margin-top: 20px;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--accent), #9b5de5);
+      color: #fff;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 20px rgba(108,99,255,.35);
+    }
+    #convert-btn:disabled { opacity: .5; cursor: not-allowed; transform: none !important; }
+    #convert-btn:not(:disabled):hover { opacity: .9; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(108,99,255,.5); }
+    #convert-btn:not(:disabled):active { transform: translateY(0); }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 28px 0;
+    }
+
+    /* ── Result panel ── */
+    #result-panel { display: none; }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .result-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .result-title .dot {
+      width: 8px; height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--success);
+    }
+    .result-stats {
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      gap: 14px;
+    }
+
+    #preview-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      color: #c4cfe8;
+      max-height: 340px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #preview-box::-webkit-scrollbar { width: 6px; }
+    #preview-box::-webkit-scrollbar-track { background: transparent; }
+    #preview-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Download button ── */
+    #download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      margin-top: 16px;
+      padding: 13px;
+      background: rgba(52,211,153,.1);
+      border: 1px solid rgba(52,211,153,.3);
+      color: var(--success);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .2s, transform .15s;
+    }
+    #download-btn:hover { background: rgba(52,211,153,.18); transform: translateY(-1px); }
+    #download-btn:active { transform: translateY(0); }
+
+    /* ── Error banner ── */
+    #error-banner {
+      display: none;
+      background: rgba(248,113,113,.1);
+      border: 1px solid rgba(248,113,113,.3);
+      color: var(--error);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-top: 16px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 36px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="badge">⚡ Powered by mammoth + markdownify</div>
+    <h1>DOCX → Markdown</h1>
+    <p>Upload any Word document and instantly convert it to clean, readable Markdown.</p>
+  </header>
+
+  <main class="card">
+
+    <!-- Drop Zone -->
+    <div id="drop-zone">
+      <input type="file" id="file-input" accept=".docx" />
+      <span class="drop-icon">📄</span>
+      <p class="drop-title">Drop your .docx file here</p>
+      <p class="drop-sub">or click to browse &nbsp;·&nbsp; max 50 MB</p>
+    </div>
+
+    <!-- File Chip -->
+    <div id="file-chip">
+      <span class="chip-icon">📝</span>
+      <span class="chip-name" id="chip-name"></span>
+      <span class="chip-size" id="chip-size"></span>
+      <button class="chip-clear" id="chip-clear" title="Remove file">✕</button>
+    </div>
+
+    <!-- Error -->
+    <div id="error-banner"></div>
+
+    <!-- Convert -->
+    <button id="convert-btn" disabled>
+      <div class="spinner" id="spinner"></div>
+      <span id="btn-label">Convert to Markdown</span>
+    </button>
+
+    <!-- Result -->
+    <div id="result-panel">
+      <div class="divider"></div>
+
+      <div class="result-header">
+        <div class="result-title">
+          <span class="dot"></span>
+          Conversion complete
+        </div>
+        <div class="result-stats">
+          <span id="stat-chars">0 chars</span>
+          <span id="stat-lines">0 lines</span>
+        </div>
+      </div>
+
+      <pre id="preview-box"></pre>
+
+      <button id="download-btn">⬇ Download .md file</button>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    Runs locally · No data leaves your machine
+  </footer>
+
+  <script>
+    const dropZone    = document.getElementById('drop-zone');
+    const fileInput   = document.getElementById('file-input');
+    const fileChip    = document.getElementById('file-chip');
+    const chipName    = document.getElementById('chip-name');
+    const chipSize    = document.getElementById('chip-size');
+    const chipClear   = document.getElementById('chip-clear');
+    const convertBtn  = document.getElementById('convert-btn');
+    const spinner     = document.getElementById('spinner');
+    const btnLabel    = document.getElementById('btn-label');
+    const errorBanner = document.getElementById('error-banner');
+    const resultPanel = document.getElementById('result-panel');
+    const previewBox  = document.getElementById('preview-box');
+    const downloadBtn = document.getElementById('download-btn');
+    const statChars   = document.getElementById('stat-chars');
+    const statLines   = document.getElementById('stat-lines');
+
+    let selectedFile = null;
+    let convertedData = null;   // { markdown, filename }
+
+    // ── Drag & drop styling ──
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const f = e.dataTransfer.files[0];
+      if (f) setFile(f);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) setFile(fileInput.files[0]);
+    });
+
+    function setFile(f) {
+      if (!f.name.toLowerCase().endsWith('.docx')) {
+        showError('Only .docx files are supported.');
+        return;
+      }
+      hideError();
+      resetResult();
+      selectedFile = f;
+      chipName.textContent = f.name;
+      chipSize.textContent = formatBytes(f.size);
+      fileChip.style.display = 'flex';
+      convertBtn.disabled = false;
+    }
+
+    chipClear.addEventListener('click', () => {
+      selectedFile = null;
+      fileInput.value = '';
+      fileChip.style.display = 'none';
+      convertBtn.disabled = true;
+      resetResult();
+      hideError();
+    });
+
+    // ── Convert ──
+    convertBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      setLoading(true);
+      hideError();
+      resetResult();
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res  = await fetch('/convert', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Conversion failed.');
+          return;
+        }
+
+        convertedData = { markdown: data.markdown, filename: data.filename };
+        previewBox.textContent = data.markdown;
+        statChars.textContent  = data.chars.toLocaleString() + ' chars';
+        statLines.textContent  = data.lines.toLocaleString() + ' lines';
+        resultPanel.style.display = 'block';
+        resultPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      } catch (err) {
+        showError('Network error — is the server running?');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // ── Download ──
+    downloadBtn.addEventListener('click', async () => {
+      if (!convertedData) return;
+
+      const res  = await fetch('/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(convertedData),
+      });
+
+      if (!res.ok) { showError('Download failed.'); return; }
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = Object.assign(document.createElement('a'), { href: url, download: convertedData.filename });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    // ── Helpers ──
+    function setLoading(on) {
+      convertBtn.disabled = on;
+      spinner.style.display = on ? 'block' : 'none';
+      btnLabel.textContent = on ? 'Converting…' : 'Convert to Markdown';
+    }
+
+    function resetResult() {
+      convertedData = null;
+      resultPanel.style.display = 'none';
+      previewBox.textContent = '';
+    }
+
+    function showError(msg) {
+      errorBanner.textContent = '⚠ ' + msg;
+      errorBanner.style.display = 'block';
+    }
+
+    function hideError() {
+      errorBanner.style.display = 'none';
+    }
+
+    function formatBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1024 ** 2) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1024 ** 2).toFixed(1) + ' MB';
+    }
+  </script>
+</body>
+</html>
